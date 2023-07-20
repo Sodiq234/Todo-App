@@ -12,11 +12,9 @@ sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 app.use(bodyParser.json());
 
 
-
 const userStore =[];
 const otpStore =[];
 const todoStore =[];
-
 
 app.get('/' , (req,res) => {
     res.status(200).json({
@@ -213,6 +211,14 @@ app.post('/login', async (req,res) => {
         return
     };
 
+    if (emailExist.status !== 'active'){
+        res.status(400).json({
+            status: false,
+            message: 'Please activate your account as it is pending verification'
+        })
+    return
+    }
+
     const newHash = await bcrypt.hash(password, emailExist.salt)
 
     if ( newHash !== emailExist.password){
@@ -227,10 +233,128 @@ app.post('/login', async (req,res) => {
         status: true,
         message: 'You are logged in'
     })
+});
+
+app.post('/create/todo' , (req,res) => {
+        const todoSchema = Joi.object({
+        email: Joi.string().email().required(),
+        eventTitle: Joi.string().min(5).required(),
+        eventDescription:Joi.string().min(5).max(5000).required(),
+        eventDate: Joi.date().iso().messages({'date.format': `Date format is YYYY-MM-DD`}).required(),
+        eventTime: Joi.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/).required() //Joi.date().messages({'date.format': `Time format is HR:MM`}).required()
+       // eventStatus: Joi.string().required().valid('Past','Today','Upcoming')
+        });
+
+    const { email, eventTitle, eventDescription, eventDate, eventTime } = req.body;
+    const { value , error } = todoSchema.validate(req.body);
+
+    if ( error !== undefined ){
+        res.status(400).json({
+            status: false,
+            message: error.details[0].message
+        })
+    return
+    };
+    const userCheck = userStore.find( item => item.email === email );
+    
+
+    if (!userCheck){
+        res.status(400).json({
+            status: false,
+            message: 'User does not exist, You need to sign up before you can list an event'
+        })
+    return
+    };
+
+    if (userCheck.status !== 'active'){
+        res.status(400).json({
+            status: false,
+            message: 'Please activate your account as it is pending verification'
+        })
+    return
+    }
+
+    const todoCheck = todoStore.find (item => item.eventTitle === eventTitle || item.eventDescription === eventDescription);
+
+    if (todoCheck){
+        res.status(400).json({
+            status: false,
+            message: 'Todo already exist'
+        })
+    return
+    };
+
+    const tempTodo = {
+        todoId: uuidv4(),
+        eventTitle,
+        eventDescription,
+        eventDate,
+        eventTime,
+        eventStatus: 'Upcoming'
+    };
+
+    todoStore.push(tempTodo);
+
+    res.status(200).json({
+        status: true,
+        message: 'Your todo list has been created',
+        data: tempTodo
+    })
+});
+
+app.put('/todo/update/:todoId', (req,res) => {
+
+    const todoUpdateSchema = Joi.object({
+        email: Joi.string().email().required(),
+        eventTitle: Joi.string().min(5).required(),
+        eventDescription:Joi.string().min(5).max(5000).required(),
+        eventDate: Joi.date().iso().messages({'date.format': `Date format is YYYY-MM-DD`}).required(),
+        eventTime: Joi.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/).required()
+    });
+
+    const todoId = req.params.todoId;
+    const { email, eventTitle, eventDescription, eventDate, eventTime } = req.body;
+    const { value, error } = todoUpdateSchema.validate(req.body);
+
+    if (error !== undefined){
+        res.status(400).json({
+            status: false,
+            message: error.details[0].message
+        })
+    return
+    };
+
+    const userCheck = userStore.find( item => item.email === email );
+
+    if (userCheck.status !== 'active'){
+        res.status(400).json({
+            status: false,
+            message: 'Please activate your account as it is pending verification'
+        })
+    return
+    }
+
+    const todoExist = todoStore.find (item => item.todoId === todoId || item.email === email);
+
+    if (!todoExist){
+        res.status(404).json({
+            status: false,
+            message: 'Todo does not exist, kindly think of that event that is coming up and create their list'
+        })
+    return
+    };
+
+   todoExist.eventTitle = eventTitle;
+   todoExist.eventDescription = eventDescription;
+   todoExist.eventDate = eventDate;
+   todoExist.eventTime = eventTime;
+
+   res.status(200).json({
+    status: true,
+    message: 'Your todo has been updated successfully',
+    data: todoStore
+   })
 })
-
-
-
 
 
 // Helpers function
@@ -239,18 +363,20 @@ const generateOtp = () => {
     return Math.floor(10000 + Math.random()*90000)
 };
 
-const sendEmail = (email, subject, message) => {
+const sendEmail = async (email, subject, message) => {
     const msg = {
         to: email,
         from: process.env.SENDER_EMAIL, 
         subject: subject,
         text: message
       };
-      sgMail
-        .send(msg)
-        .then(() => {})
-        .catch((error) => {})
 
+try {
+     await sgMail.send(msg);
+    } catch (error) {
+        console.error('Error sending email:', error.message);
+        throw new Error('Failed to send email. Please try again later.');
+      }
 }
 
 app.listen(PORT, () => {
