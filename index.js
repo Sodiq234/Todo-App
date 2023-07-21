@@ -349,13 +349,126 @@ app.put('/todo/update/:todoId', (req,res) => {
    todoExist.eventDate = eventDate;
    todoExist.eventTime = eventTime;
 
+   const currentDate = new Date().toJSON().slice(0, 10);
+
+   if (eventDate > currentDate){
+    todoExist.eventStatus = 'Upcoming event'
+   }
+
+   if (eventDate < currentDate){
+    todoExist.eventStatus = 'Past event'
+   }
+
+   if(eventDate === currentDate){
+    todoExist.eventStatus = `Today's event`
+   }
+
    res.status(200).json({
     status: true,
     message: 'Your todo has been updated successfully',
     data: todoStore
    })
-})
+});
 
+app.delete('/todo/delete/:todoId' , (req,res)  => {
+
+    const todoId = req.params.todoId;
+
+    const email = req.body.email;
+
+    const userExist = userStore.find(item => item.email === email)
+
+    if(!userExist || userExist.status !== 'active'){
+        res.status(400).json({
+            status: false,
+            message: 'Please check your activate your account or create account if you have not done that'
+        })
+    return
+    }
+
+    const todoExist = todoStore.findIndex(item => item.todoId === todoId);
+
+    if (todoExist === -1 ){
+        res.status(404).json({
+            status: false,
+            message: 'Todo does not exist. Please log into your account to create a todo'
+        })
+    return
+    };
+    // to delete the found todo from the todoStore
+    todoStore.splice(todoExist, 1);
+
+    res.status(200).json({
+        status: true,
+        message: 'The todo has been dsuccessfully eleted.'
+    })
+});
+
+app.get('/admin/all-todos', (req,res) => {
+    const { apikey } = req.headers;
+
+    if (!apikey || process.env.apikey){
+        res.status(401).json({
+            status: false,
+            message: 'Unauthorised'
+        })
+    return
+    };
+
+    res.status(200).json({
+        status: true,
+        message: 'These are all the todos',
+        data: todoStore
+    })
+});
+
+app.get('/admin/all-users', (req,res) => {
+    const { apikey }  = req.headers;
+
+    if (!apikey || process.env.apikey){
+        res.status(401).json({
+            status: false,
+            message: 'Unauthorised'
+        })
+    return
+    };
+
+    res.status(200).json({
+        status: true,
+        message: 'These are all the users',
+        data: userStore
+    })
+});
+
+app.get('/admin/todo/:todoId' , (req,res) => {
+
+    const { apikey } = req.headers;
+    const { todoId } = req.params;
+
+    if (!apikey || process.env.apikey){
+        res.status(401).json({
+            status: false,
+            message: 'Unauthorised'
+        })
+    return
+    };
+
+    const checkTodoStore = todoStore.find( item => item.todoId === todoId );
+
+    if (!checkTodoStore){
+        res.status(400).json({
+            status: false,
+            message: 'This todo does not exist'
+        })
+    return
+    };
+
+    res.status(200).json({
+        status: true,
+        message: 'The todo list for this data is presented',
+        data: checkTodoStore
+    })
+});
 
 // Helpers function
 
