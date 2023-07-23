@@ -11,7 +11,6 @@ var bodyParser = require('body-parser')
 sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 app.use(bodyParser.json());
 
-
 const userStore =[];
 const otpStore =[];
 const todoStore =[];
@@ -407,7 +406,7 @@ app.delete('/todo/delete/:todoId' , (req,res)  => {
 app.get('/admin/all-todos', (req,res) => {
     const { apikey } = req.headers;
 
-    if (!apikey || process.env.apikey){
+    if (!apikey || apikey !== process.env.API_KEY){
         res.status(401).json({
             status: false,
             message: 'Unauthorised'
@@ -425,7 +424,7 @@ app.get('/admin/all-todos', (req,res) => {
 app.get('/admin/all-users', (req,res) => {
     const { apikey }  = req.headers;
 
-    if (!apikey || process.env.apikey){
+    if (!apikey || apikey !== process.env.API_KEY){
         res.status(401).json({
             status: false,
             message: 'Unauthorised'
@@ -445,7 +444,7 @@ app.get('/admin/todo/:todoId' , (req,res) => {
     const { apikey } = req.headers;
     const { todoId } = req.params;
 
-    if (!apikey || process.env.apikey){
+    if (!apikey || apikey !== process.env.API_KEY){
         res.status(401).json({
             status: false,
             message: 'Unauthorised'
@@ -469,6 +468,7 @@ app.get('/admin/todo/:todoId' , (req,res) => {
         data: checkTodoStore
     })
 });
+
 
 // Helpers function
 
